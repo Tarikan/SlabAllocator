@@ -19,7 +19,7 @@ struct Cache *InitCache(struct Cache *ptr, struct Cache *prev, size_t size);
 
 void DestroyCache(struct Cache *cache);
 
-struct Cache *FindFirstFree(struct Cache *cache, size_t size);
+struct Cache *FindFirst(struct Cache *cache, size_t size);
 
 struct Slab *Pop(struct Slab* slab);
 

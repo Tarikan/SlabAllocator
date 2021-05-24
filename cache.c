@@ -36,7 +36,7 @@ void DestroyCache(struct Cache *cache) {
     cache->next = cache->prev = NULL;
 }
 
-struct Cache *FindFirstFree(struct Cache *cache, size_t size) {
+struct Cache *FindFirst(struct Cache *cache, size_t size) {
     while (cache) {
         if (cache->size == size) {
             return cache;
@@ -69,6 +69,7 @@ struct Slab *Pop(struct Slab *slab) {
 }
 
 struct Slab *Append(struct Slab *slab, struct Slab *destination) {
+
     destination = GetLastInList(destination);
 
     SetNext(slab, destination);

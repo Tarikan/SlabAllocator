@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include "include/cache.h"
 #include <stdbool.h>
+#include <assert.h>
 #include "Utils/align_utils.h"
 #include "include/mask.h"
 #include "include/slab.h"
@@ -23,7 +24,7 @@ void *mem_alloc(size_t size) {
         InitRootCache();
     }
 
-    struct Cache *cache = FindFirstFree(&root, size);
+    struct Cache *cache = FindFirst(&root, size);
     struct Slab *slab;
 
     if (cache == NULL) {
@@ -45,21 +46,30 @@ void *mem_alloc(size_t size) {
 
     void *ptr = IndexToPtr(slab, bit);
 
-    if (find_first_occupied(slab) == -1) {
+    if (find_first_free(slab) == -1) {
         if (slab == cache->free_list) {
             cache->free_list = slab->next;
         }
 
-        Append(Pop(slab), cache->occupied_list);
+        if (cache->occupied_list != NULL) {
+            Append(Pop(slab), cache->occupied_list);
+        }
+        else {
+            cache->occupied_list = Pop(slab);
+        }
     }
 
     return ptr;
 }
 
 void mem_free(void *ptr) {
+    if (ptr == NULL) {
+        return;
+    }
+
     struct Slab *slab = GetSlabFromObj(ptr);
 
-    struct Cache* cache = FindFirstFree(&root, slab->obj_size);
+    struct Cache *cache = FindFirst(&root, slab->obj_size);
 
     bool occupied = false;
 
@@ -72,7 +82,15 @@ void mem_free(void *ptr) {
     UnsetBit(slab, id);
 
     if (occupied) {
-        Append(Pop(slab), cache->free_list);
+        if (cache->occupied_list == slab) {
+            cache->occupied_list = slab->next;
+        }
+        if (cache->free_list != NULL) {
+            Append(Pop(slab), cache->free_list);
+        }
+        else {
+            cache->free_list = Pop(slab);
+        }
     }
 }
 

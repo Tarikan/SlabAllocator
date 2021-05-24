@@ -8,7 +8,6 @@
 struct Slab *InitSlab(unsigned int pages_count, size_t obj_size, struct Slab *prev) {
     struct Slab *ptr = (struct Slab *)kernel_alloc(pages_count * get_page_size());
 
-    // Small slab
     if (prev != NULL) {
         SetNext(prev, ptr);
         SetPrev(ptr, prev);
@@ -53,7 +52,7 @@ struct Slab *GetNext(struct Slab *slab) {
 }
 
 void SetPrev(struct Slab *slab, void *prev) {
-    slab->next = prev;
+    slab->prev = prev;
 }
 
 struct Slab *GetPrev(struct Slab *slab) {
@@ -78,5 +77,6 @@ struct Slab *GetLastInList(struct Slab* slab) {
 }
 
 struct Slab *GetSlabFromObj(struct Object *obj) {
-    return (struct Slab *)(align(((uintptr_t)obj), get_page_size()) - get_page_size());
+    return (struct Slab *)
+            (align(((uintptr_t)obj), get_page_size()) - get_page_size());
 }

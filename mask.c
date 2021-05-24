@@ -42,6 +42,9 @@ int find_first_free(struct Slab *slab) {
     if (levels * slab->obj_count < BITS_PER_LEVEL) ++levels;
     for (int i = 0; i < levels; i++) {
         res = find_first_unset(slab->mask[i]);
+        if (res >= slab->obj_count) {
+            return -1;
+        }
         if (res >= 0) {
             return res;
         }
