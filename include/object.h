@@ -8,7 +8,8 @@
 #include "slab.h"
 
 struct Object {
-    union {
+    /// Якщо об'єкт вирівняний по 32, то це точно малий об'єкт (мінімальний розмір алокації - 32 байта)
+    union body {
         struct Slab *master;
         char data[sizeof(struct Slab *)];
     };

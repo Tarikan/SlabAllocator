@@ -6,6 +6,7 @@ void random_addr(void *ptr, size_t size) {
          i < size;
          i++) {
         *((char *) ptr + i) = (char) rand();
+        //*((char *) ptr + i) = (char) 0xFF;
     }
 }
 

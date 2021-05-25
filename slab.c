@@ -6,7 +6,7 @@
 #include "Utils/align_utils.h"
 
 struct Slab *InitSlab(unsigned int pages_count, size_t obj_size, struct Slab *prev) {
-    struct Slab *ptr = (struct Slab *)kernel_alloc(pages_count * get_page_size());
+    struct Slab *ptr = (struct Slab *) kernel_alloc(pages_count * get_page_size());
 
     if (prev != NULL) {
         SetNext(prev, ptr);
@@ -17,7 +17,8 @@ struct Slab *InitSlab(unsigned int pages_count, size_t obj_size, struct Slab *pr
     }
     SetObjSize(ptr, obj_size);
 
-    ptr->obj_count = pages_count * get_page_size() / GetObjSize(ptr);
+    if (pages_count > 1) ptr->obj_count = pages_count * get_page_size() / (GetObjSize(ptr) + 2 * ALIGNMENT);
+    else ptr->obj_count =  get_page_size() / GetObjSize(ptr);
 
     InitMask(ptr);
 
@@ -67,7 +68,7 @@ size_t GetObjSize(struct Slab *slab) {
     return slab->obj_size;
 }
 
-struct Slab *GetLastInList(struct Slab* slab) {
+struct Slab *GetLastInList(struct Slab *slab) {
     if (slab == NULL) return NULL;
     while (GetNext(slab)) {
         slab = GetNext(slab);
@@ -77,6 +78,13 @@ struct Slab *GetLastInList(struct Slab* slab) {
 }
 
 struct Slab *GetSlabFromObj(struct Object *obj) {
+    /// Якщо об'єкт не вирівняний під 32, то це великий об'єкт
+    if (((uintptr_t) obj) % (2 * ALIGNMENT) != 0) {
+        char *p = (char*)obj - ALIGNMENT;
+        struct Slab *slab = ((union body*)p)->master;
+        return slab;
+    }
+
     return (struct Slab *)
-            (align(((uintptr_t)obj), get_page_size()) - get_page_size());
+            (align(((uintptr_t) obj), get_page_size()) - get_page_size());
 }

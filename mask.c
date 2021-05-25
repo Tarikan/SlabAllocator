@@ -2,12 +2,20 @@
 // Created by tarikan on 5/23/21.
 //
 
+#include <assert.h>
 #include "include/mask.h"
 
 void InitMask(struct Slab *slab) {
-    int headerSize = SLAB_HEADER_SIZE / slab->obj_size;
-    if (headerSize * slab->obj_size < SLAB_HEADER_SIZE) ++headerSize;
-    for (int i = 0; i < headerSize; i++) {
+    size_t mask_size = slab->obj_count / BITS_PER_LEVEL;
+    if (mask_size * BITS_PER_LEVEL < slab->obj_count) ++mask_size;
+
+    int header_size = (SLAB_HEADER_SIZE + mask_size) / slab->obj_size;
+    if (header_size * slab->obj_size < (SLAB_HEADER_SIZE + mask_size)) ++header_size;
+
+    assert(mask_size != 0);
+    assert(header_size != 0);
+
+    for (int i = 0; i < header_size; i++) {
         SetBit(slab, i);
     }
 }
@@ -17,6 +25,7 @@ void SetBit(struct Slab *slab, int bitNum) {
 }
 
 void UnsetBit(struct Slab *slab, int bitNum) {
+    assert(bitNum != 0);
     slab->mask[bitNum / BITS_PER_LEVEL] &= ~(1 << (bitNum % BITS_PER_LEVEL));
 }
 
@@ -74,9 +83,26 @@ int find_first_occupied(struct Slab *slab) {
 }
 
 void *IndexToPtr(struct Slab *slab, int index) {
-    return ((char *)slab) + index * slab->obj_size;
+    void* res;
+    if (slab->obj_count * slab->obj_size > get_page_size()) {
+        /// big object
+        res = ((char *)slab) + index * (slab->obj_size + 2 * ALIGNMENT);
+    }
+    else res = ((char *)slab) + index * slab->obj_size;
+
+    assert(slab != res);
+
+    return res;
 }
 
 int PtrToIndex(struct Slab *slab, void *ptr) {
-    return ((char*)ptr - (char*)slab) / slab->obj_size;
+    /// Якщо об'єкт не вирівняний під 32, то це великий об'єкт
+    //if (((uintptr_t) ptr) % (2 * ALIGNMENT) != 0) {
+    //    return ((char*)ptr - (char*)slab) / (slab->obj_size + sizeof (struct Slab *));
+    //}
+    int res =  ((char*)ptr - (char*)slab) / slab->obj_size;
+
+    assert(res != 0);
+
+    return res;
 }

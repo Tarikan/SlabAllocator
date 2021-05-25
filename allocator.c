@@ -7,6 +7,7 @@
 #include "Utils/align_utils.h"
 #include "include/mask.h"
 #include "include/slab.h"
+#include <math.h>
 
 static bool first_cache_init = false;
 
@@ -18,23 +19,38 @@ void InitRootCache() {
 }
 
 void *mem_alloc(size_t size) {
-    size = align(size, ALIGNMENT);
+    bool big_slab = false;
+
+    bool cache_initted = false;
+    bool slab_initted = false;
+
+
+    int page_count = 1;
+    size = align(size, 2 * ALIGNMENT);
 
     if (!first_cache_init) {
         InitRootCache();
     }
 
-    struct Cache *cache = FindFirst(&root, size);
+    if (get_page_size() / size < 8) {
+        /// Big slab
+        big_slab = true;
+        page_count = align(size * 8, get_page_size()) / get_page_size();
+    }
+
+    struct Cache *cache = FindFirst(&root, !big_slab ? size : size + 2 * ALIGNMENT);
     struct Slab *slab;
 
     if (cache == NULL) {
-        cache = InitCache(mem_alloc(align(sizeof(struct Cache), ALIGNMENT)),
+        cache = InitCache(mem_alloc(CACHE_HEADER_SIZE),
                           GetLastCache(&root),
-                          size);
+                          !big_slab ? size : size + 2 * ALIGNMENT);
+        cache_initted = true;
     }
 
     if (cache->free_list == NULL) {
-        slab = InitNewSlab(cache, 1);
+        slab = InitNewSlab(cache, page_count);
+        slab_initted = true;
     }
     else {
         slab = cache->free_list;
@@ -45,11 +61,18 @@ void *mem_alloc(size_t size) {
     SetBit(slab, bit);
 
     void *ptr = IndexToPtr(slab, bit);
+    if (big_slab) {
+        ((union body *)ptr)->master = slab;
+
+        assert(((uintptr_t) ptr) % (2 * ALIGNMENT) == 0);
+
+        ptr = (char *)ptr + ALIGNMENT;
+
+        assert(((uintptr_t) ptr) % (2 * ALIGNMENT) != 0);
+    }
 
     if (find_first_free(slab) == -1) {
-        if (slab == cache->free_list) {
-            cache->free_list = slab->next;
-        }
+        struct Slab *next = GetNext(slab);
 
         if (cache->occupied_list != NULL) {
             Append(Pop(slab), cache->occupied_list);
@@ -57,7 +80,13 @@ void *mem_alloc(size_t size) {
         else {
             cache->occupied_list = Pop(slab);
         }
+
+        if (slab == cache->free_list) {
+            cache->free_list = next;
+        }
     }
+
+    assert(ptr != slab);
 
     return ptr;
 }
@@ -82,14 +111,16 @@ void mem_free(void *ptr) {
     UnsetBit(slab, id);
 
     if (occupied) {
-        if (cache->occupied_list == slab) {
-            cache->occupied_list = slab->next;
-        }
+        struct Slab* next = GetNext(slab);
+
         if (cache->free_list != NULL) {
             Append(Pop(slab), cache->free_list);
         }
         else {
             cache->free_list = Pop(slab);
+        }
+        if (cache->occupied_list == slab) {
+            cache->occupied_list = next;
         }
     }
 }
